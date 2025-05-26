@@ -499,6 +499,35 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     }
 }
 
+private let helpFlags: Set<String>     = ["-h", "--help", "help"]
+private let versionFlags: Set<String>  = ["-v", "--version", "version"]
+
+private func handleEarlyFlags() {
+    let args = Set(CommandLine.arguments.dropFirst())
+
+    if !helpFlags.isDisjoint(with: args) {
+        print("""
+        mac-menu – does wonderful things with piped input.
+
+        USAGE:
+          mac-menu [options]
+
+        OPTIONS:
+          -h, --help,   help      Show this help and quit
+          -v, --version,version   Show version and quit
+        """)
+        exit(EXIT_SUCCESS)
+    }
+
+    if !versionFlags.isDisjoint(with: args) {
+        let version = "0.0.1"
+        print("mac-menu \(version)")
+        exit(EXIT_SUCCESS)
+    }
+}
+
+handleEarlyFlags()
+
 // Start app
 let app = NSApplication.shared
 let delegate = MenuApp()
