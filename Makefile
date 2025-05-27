@@ -3,7 +3,7 @@ BINARY_NAME = mac-menu
 SRC_DIR = src
 DIST_DIR = .build
 
-.PHONY: all clean install uninstall
+.PHONY: all clean install uninstall test
 
 all: $(DIST_DIR)/$(BINARY_NAME)
 
@@ -23,4 +23,8 @@ uninstall:
 
 clean:
 	@echo "Cleaning build files..."
-	@rm -rf $(DIST_DIR) 
+	@rm -rf $(DIST_DIR)
+
+test: $(DIST_DIR)/$(BINARY_NAME)
+	@echo "Testing with Yes/No input..."
+	@echo "Yes\nNo" | $(DIST_DIR)/$(BINARY_NAME) 
