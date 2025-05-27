@@ -31,12 +31,13 @@ curl -sSL https://raw.githubusercontent.com/sadiksaifi/mac-menu/main/install.sh 
 
 1. Clone this repository
 2. Build and install:
+
    ```bash
    make
    sudo make install
    ```
 
-To uninstall:
+3. To uninstall:
 
 ```bash
 sudo make uninstall
@@ -81,8 +82,8 @@ This will build the application (if needed) and launch it with "Yes" and "No" as
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT License - See [LICENSE](./LICENSE) file for details.
 
 ## Contributing
 
-Contributions are welcome! Please read [contribution guidlines](./CONTRIBUTING.md)
+Contributions are welcome! Please read [contribution guidlines](./CONTRIBUTING.md).
