@@ -8,6 +8,7 @@
  */
 
 import Cocoa
+import Darwin
 
 /// A custom table row view that provides hover and selection effects
 class HoverTableRowView: NSTableRowView {
@@ -351,11 +352,30 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     
     /// Loads input from stdin and populates the items list
     func loadInput() {
+        // Check if stdin is a terminal
+        if isatty(FileHandle.standardInput.fileDescriptor) != 0 {
+            print("Error: No input provided. Please pipe some input into mac-menu.")
+            print("Use 'mac-menu --help' to learn more about how to use the program.")
+            NSApp.terminate(nil)
+            return
+        }
+        
+        // Try to read available input
         if let input = try? String(data: FileHandle.standardInput.readToEnd() ?? Data(), encoding: .utf8) {
+            if input.isEmpty {
+                print("Error: No input provided. Please pipe some input into mac-menu.")
+                print("Use 'mac-menu --help' to learn more about how to use the program.")
+                NSApp.terminate(nil)
+                return
+            }
             allItems = input.components(separatedBy: .newlines).filter { !$0.isEmpty }
             filteredItems = allItems
             tableView.reloadData()
             selectRow(index: 0)
+        } else {
+            print("Error: No input provided. Please pipe some input into mac-menu.")
+            print("Use 'mac-menu --help' to learn more about how to use the program.")
+            NSApp.terminate(nil)
         }
     }
     
