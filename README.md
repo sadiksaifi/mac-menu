@@ -75,4 +75,4 @@ MIT License - See LICENSE file for details
 
 ## Contributing
 
-Contributions are welcome! Please read kcontribution guidlines](./CONTRIBUTING.md)
+Contributions are welcome! Please read [contribution guidlines](./CONTRIBUTING.md)
