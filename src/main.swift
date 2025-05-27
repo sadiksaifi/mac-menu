@@ -132,7 +132,12 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         }
         
         window.level = .floating
-
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        window.hidesOnDeactivate = false
+        
+        // Prevent multiple instances from appearing in dock
+        NSApp.setActivationPolicy(.accessory)
+        
         // Main container with border
         let containerView = NSView(frame: window.contentView!.bounds)
         containerView.wantsLayer = true
@@ -311,9 +316,18 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         window.makeFirstResponder(searchField)
         window.center()
         window.makeKeyAndOrderFront(nil)
-
-        NSApp.setActivationPolicy(.regular)
+        
+        // Ensure window gets and maintains focus
         NSApp.activate(ignoringOtherApps: true)
+        window.orderFrontRegardless()
+        
+        // Add focus observer
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidResignKey),
+            name: NSWindow.didResignKeyNotification,
+            object: window
+        )
 
         // Window-level key event monitoring
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -531,6 +545,17 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     /// Handles click events on table rows
     @objc func handleClick() {
         selectCurrentRow()
+    }
+
+    // MARK: - Window Focus Handling
+    
+    /// Handles window focus loss
+    @objc func windowDidResignKey(_ notification: Notification) {
+        // Regain focus if we're still the active window
+        if window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }
 
