@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  pull_request:
+
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build with make
+        run: make
