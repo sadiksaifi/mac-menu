@@ -69,6 +69,16 @@ make
 make clean
 ```
 
+## Testing
+
+A simple test is included to verify the application with basic input. This test will run the app with "Yes" and "No" as options:
+
+```bash
+make test
+```
+
+This will build the application (if needed) and launch it with "Yes" and "No" as selectable options. You can interact with the UI as usual (keyboard/mouse), and the selected value will be printed to stdout.
+
 ## License
 
 MIT License - See LICENSE file for details

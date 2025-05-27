@@ -99,6 +99,21 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
             defer: false
         )
 
+        // Add mouse event monitor to handle clicks outside the window
+        NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self = self else { return }
+            let windowFrame = self.window.frame
+            let clickPoint = event.locationInWindow
+            
+            // Convert click point to screen coordinates
+            let screenPoint = self.window.convertPoint(toScreen: clickPoint)
+            
+            // Check if click is outside window frame
+            if !windowFrame.contains(screenPoint) {
+                NSApp.terminate(nil)
+            }
+        }
+
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isOpaque = false
