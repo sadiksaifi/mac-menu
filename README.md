@@ -34,13 +34,13 @@ curl -sSL https://raw.githubusercontent.com/sadiksaifi/mac-menu/main/install.sh 
 
    ```bash
    make
-   sudo make install
+   make install
    ```
 
 3. To uninstall:
 
 ```bash
-sudo make uninstall
+make uninstall
 ```
 
 ## Usage
