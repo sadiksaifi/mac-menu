@@ -9,7 +9,10 @@ all: $(DIST_DIR)/$(BINARY_NAME)
 
 $(DIST_DIR)/$(BINARY_NAME): $(SRC_DIR)/main.swift
 	@mkdir -p $(DIST_DIR)
-	swiftc -O -o $(DIST_DIR)/$(BINARY_NAME) $(SRC_DIR)/main.swift -framework Cocoa
+	swiftc -O -o $(DIST_DIR)/$(BINARY_NAME) \
+	  $(SRC_DIR)/main.swift \
+	  -framework Cocoa \
+	  -framework SwiftUI
 
 install: $(DIST_DIR)/$(BINARY_NAME)
 	@echo "Installing to $(PREFIX)/bin..."
