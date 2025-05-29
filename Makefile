@@ -12,7 +12,7 @@ build: all
 
 $(DIST_DIR)/$(BINARY_NAME): $(SRC_DIR)/main.swift $(SRC_DIR)/Version.swift
 	@mkdir -p $(DIST_DIR)
-	swiftc -O -o $(DIST_DIR)/$(BINARY_NAME) $(SRC_DIR)/main.swift $(SRC_DIR)/Version.swift -framework Cocoa
+	swiftc -O -o $(DIST_DIR)/$(BINARY_NAME) $(SRC_DIR)/main.swift $(SRC_DIR)/Version.swift -framework Cocoa -framework SwiftUI
 
 $(SRC_DIR)/Version.swift:
 	@echo 'let appVersion = "$(VERSION)"' > $(SRC_DIR)/Version.swift

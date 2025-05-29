@@ -9,6 +9,7 @@
 
 import Cocoa
 import Darwin
+import SwiftUI
 
 /// A custom table row view that provides hover and selection effects
 class HoverTableRowView: NSTableRowView {
@@ -507,30 +508,15 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     ///   - row: The row for which to provide the view
     /// - Returns: The view to display in the table cell
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let cellPadding: CGFloat = 4
-        let cell = NSTextField(labelWithString: filteredItems[row])
-        cell.textColor = NSColor.white
-        cell.backgroundColor = NSColor.clear
-        cell.isBordered = false
-        cell.font = NSFont.systemFont(ofSize: 16, weight: .regular)
-        cell.lineBreakMode = .byTruncatingTail
-        
-        // Create container for proper padding and hover state
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: tableView.frame.width, height: tableView.rowHeight))
-        container.wantsLayer = true
-        
-        // Center the cell vertically in its container and add side padding
-        let cellHeight = cell.cell?.cellSize.height ?? 20
-        let yOffset = (container.frame.height - cellHeight) / 2
-        cell.frame = NSRect(x: cellPadding, 
-                          y: yOffset,
-                          width: container.frame.width - (cellPadding * 2), 
-                          height: cellHeight)
-        
-        container.addSubview(cell)
-        return container
+        return NSHostingView(rootView:
+            Text(filteredItems[row])
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(.leading, 4)
+        )
     }
-    
+
     /// Provides a custom row view for the table
     /// - Parameters:
     ///   - tableView: The table view requesting the row view
