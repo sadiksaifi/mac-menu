@@ -688,7 +688,8 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         let row = tableView.selectedRow
         guard row >= 0 && row < filteredItems.count else { return }
         if returnIndexFlag {
-            print(filteredItems[row].value, "\n", filteredItems[row].index)
+            print(filteredItems[row].value)
+            print(filteredItems[row].index)
         } else {
 
             print(filteredItems[row].value)
