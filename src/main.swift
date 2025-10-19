@@ -477,7 +477,11 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
 
             // Enter key
             if event.keyCode == 36 {
-                self.selectCurrentRow()
+                if !inputModeFlag {
+                    self.selectCurrentRow()
+                } else {
+                    self.submitQuery()
+                }
                 return nil
             }
 
@@ -490,7 +494,9 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
             return event
         }
 
-        loadInput()
+        if !inputModeFlag {
+            loadInput()
+        }
     }
 
     // MARK: - Input Handling
@@ -683,6 +689,13 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         tableView.scrollRowToVisible(index)
     }
 
+    /// Send the current query to stdout
+    func submitQuery() {
+        print(searchField.stringValue)
+        fflush(stdout)
+        NSApp.terminate(nil)
+    }
+
     /// Handles the selection of the current row
     func selectCurrentRow() {
         let row = tableView.selectedRow
@@ -691,7 +704,6 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
             print(filteredItems[row].value)
             print(filteredItems[row].index)
         } else {
-
             print(filteredItems[row].value)
         }
         fflush(stdout)
@@ -717,8 +729,10 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
 
 private let helpFlags: Set<String> = ["-h", "--help", "help"]
 private let versionFlags: Set<String> = ["-v", "--version", "version"]
-private let returnIndexFlags: Set<String> = ["-i", "--index"]
+private let returnIndexFlags: Set<String> = ["-ix", "--index"]
+private let inputModeFlags: Set<String> = ["-i", "--input"]
 private var returnIndexFlag: Bool = false
+private var inputModeFlag: Bool = false
 
 private func handleEarlyFlags() {
     let args = Set(CommandLine.arguments.dropFirst())
@@ -732,8 +746,10 @@ private func handleEarlyFlags() {
               mac-menu [options]
 
             OPTIONS:
-              -h, --help,   help      Show this help and quit
-              -v, --version,version   Show version and quit
+              -h, --help       Show this help message
+              -v, --version    Show version information
+              -ix, --index     Return the selected item's index instead of its value
+              -i, --input      Start in interactive mode without reading from stdin
             """)
         exit(EXIT_SUCCESS)
     }
@@ -746,6 +762,10 @@ private func handleEarlyFlags() {
 
     if !returnIndexFlags.isDisjoint(with: args) {
         returnIndexFlag = true
+    }
+
+    if !inputModeFlags.isDisjoint(with: args) {
+        inputModeFlag = true
     }
 }
 
