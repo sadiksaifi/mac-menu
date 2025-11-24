@@ -34,3 +34,22 @@ jobs:
           files: dist/mac-menu.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Formula
+        run: |
+          VERSION=${{ github.ref_name }}
+          URL="https://github.com/sadiksaifi/mac-menu/releases/download/${VERSION}/mac-menu.tar.gz"
+          SHA256=$(shasum -a 256 dist/mac-menu.tar.gz | awk '{print $1}')
+
+          # Update Formula file
+          sed -i '' "s|url \".*\"|url \"$URL\"|" Formula/mac-menu.rb
+          sed -i '' "s|sha256 \".*\"|sha256 \"$SHA256\"|" Formula/mac-menu.rb
+
+          # Commit and push
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/mac-menu.rb
+          git commit -m "chore: update formula for $VERSION"
+          git push origin HEAD:main
+
+          echo "✅ $VERSION formula updated and pushed"
