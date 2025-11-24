@@ -686,8 +686,7 @@ private func handleEarlyFlags() {
     }
 
     if !versionFlags.isDisjoint(with: args) {
-        let version = "0.0.1"
-        print("mac-menu \(version)")
+        print("mac-menu \(appVersion)")
         exit(EXIT_SUCCESS)
     }
 }
