@@ -19,15 +19,16 @@ For a detailed overview of Mac Menu, including real-world examples and use cases
 
 ## Installation
 
-### Using the installation script
+### Homebrew (Recommended)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/sadiksaifi/mac-menu/main/install.sh | bash
+brew tap sadiksaifi/mac-menu https://github.com/sadiksaifi/mac-menu
+brew install mac-menu
 ```
 
 ### Manual Installation
 
-#### Using Make (Recommended)
+#### Using Make
 
 1. Clone this repository
 2. Build and install:
@@ -64,7 +65,7 @@ The selected item will be printed to stdout.
 
 ```bash
 # Build the application
-make
+make build
 
 # Clean build files
 make clean

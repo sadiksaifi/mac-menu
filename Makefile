@@ -7,6 +7,8 @@ DIST_DIR = .build
 
 all: $(DIST_DIR)/$(BINARY_NAME)
 
+build: all
+
 $(DIST_DIR)/$(BINARY_NAME): $(SRC_DIR)/main.swift
 	@mkdir -p $(DIST_DIR)
 	swiftc -O -o $(DIST_DIR)/$(BINARY_NAME) $(SRC_DIR)/main.swift -framework Cocoa
