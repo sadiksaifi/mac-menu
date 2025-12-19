@@ -73,13 +73,17 @@ make clean
 
 ## Testing
 
-A simple test is included to verify the application with basic input. This test will run the app with "Yes" and "No" as options:
+Run the Swift Testing suite:
 
 ```bash
 make test
 ```
 
-This will build the application (if needed) and launch it with "Yes" and "No" as selectable options. You can interact with the UI as usual (keyboard/mouse), and the selected value will be printed to stdout.
+For a quick manual check of the UI, pipe input into the app and launch it via the convenience target:
+
+```bash
+echo -e "Yes\nNo" | make run
+```
 
 ## License
 
