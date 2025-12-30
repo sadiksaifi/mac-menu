@@ -119,13 +119,14 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
         window.hidesOnDeactivate = false
+        window.appearance = nil  // Inherit system light/dark mode
 
         // Prevent dock icon
         NSApp.setActivationPolicy(.accessory)
 
         // Use NSVisualEffectView as the main content - native macOS blur like Spotlight
         let visualEffectView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: width, height: height))
-        visualEffectView.material = .popover  // Same material as Spotlight/Raycast
+        visualEffectView.material = .sidebar  // Light with blur in light mode
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.state = .active
         visualEffectView.wantsLayer = true

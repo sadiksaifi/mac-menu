@@ -4,12 +4,13 @@ import Cocoa
 public class HoverTableRowView: NSTableRowView {
     private var isHovered = false
 
-    /// Draws the selection highlight with rounded corners
+    /// Draws the selection highlight with rounded corners - subtle like Raycast
     public override func drawSelection(in dirtyRect: NSRect) {
         if self.selectionHighlightStyle != .none {
             let selectionRect = NSRect(x: 8, y: 2, width: self.bounds.width - 16, height: self.bounds.height - 4)
             let path = NSBezierPath(roundedRect: selectionRect, xRadius: 6, yRadius: 6)
-            NSColor.controlAccentColor.withAlphaComponent(0.3).setFill()
+            // Subtle highlight - slightly darker/lighter than background
+            NSColor.labelColor.withAlphaComponent(0.15).setFill()
             path.fill()
         }
     }
