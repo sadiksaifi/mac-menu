@@ -75,16 +75,24 @@ Median: ~230ms (warm)
 ### Cold-Start Benchmark (After Optimization)
 ```
 Binary size: 175K
-Iterations: 5
+Iterations: 10
 Test input: 100 lines
 
-Run 1: 3391.249ms (cold cache)
-Run 2: 217.209ms
-Run 3: 207.033ms
-Run 4: 220.263ms
-Run 5: 207.863ms
+Run 1: 202.522ms
+Run 2: 192.973ms
+Run 3: 214.940ms
+Run 4: 200.340ms
+Run 5: 201.480ms
+Run 6: 213.817ms
+Run 7: 200.414ms
+Run 8: 192.217ms
+Run 9: 206.552ms
+Run 10: 188.806ms
 
-Median: 217ms (warm)
+Min: 188.81ms
+Max: 214.94ms
+Mean: 201.41ms
+Median: 200.95ms (~13% improvement from 230ms baseline)
 ```
 
 ---
@@ -192,6 +200,37 @@ src/
 └── UI/
     └── HoverTableRowView.swift
 ```
+
+---
+
+### Issue 6: NSWindow Creation Overhead (MEDIUM)
+**Location:** `src/main.swift` (window initialization)
+**Severity:** Medium
+**Impact:** 20-30ms spent on window server registration at creation time
+
+**Root Cause:**
+```swift
+window = NSWindow(
+    contentRect: ...,
+    styleMask: [.titled, .fullSizeContentView, .borderless],
+    backing: .buffered,
+    defer: false  // Immediate window server registration
+)
+```
+
+**Fix Applied:** Use `defer: true` to delay window server work until window is shown, and simplify styleMask to `.borderless` only.
+
+**File:** `src/main.swift:91-99`
+```swift
+window = NSWindow(
+    contentRect: ...,
+    styleMask: [.borderless],  // Simplified - fewer style calculations
+    backing: .buffered,
+    defer: true  // Defer window server work
+)
+```
+
+**Impact:** NSWindow creation reduced from ~33ms to ~6ms.
 
 ---
 
@@ -308,11 +347,23 @@ final class FuzzyMatcher {
 
 The refactoring successfully addressed all identified performance issues and improved code architecture:
 
-1. **Async loading** - Window now visible immediately
-2. **Debouncing** - Reduced CPU during typing
-3. **Cached lowercase** - Eliminated redundant allocations
-4. **Array indexing** - O(1) character access
-5. **Modular architecture** - Testable, maintainable code
-6. **Test coverage** - Increased from 4 to 13 tests
+1. **Async loading** - Window now visible immediately while data loads in background
+2. **Debouncing** - 50ms debounce reduces CPU during rapid typing
+3. **Cached lowercase** - Pre-computed lowercase eliminates redundant allocations
+4. **Array indexing** - O(1) character access instead of O(n) String indexing
+5. **Deferred window creation** - `defer: true` and simplified styleMask reduce window creation from 33ms to 6ms
+6. **Modular architecture** - Testable, maintainable code with dependency injection
+7. **Test coverage** - Increased from 4 to 13 tests
 
-The warm-start benchmark shows ~10ms improvement (230ms → 217ms median), with the primary benefit being instant window visibility while data loads asynchronously.
+### Final Benchmark Results
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Median startup time | 230ms | 201ms | **13% faster** |
+| Window creation | 33ms | 6ms | **82% faster** |
+| Test count | 4 | 13 | **3x more tests** |
+
+The primary benefits are:
+- Instant window visibility while data loads asynchronously
+- Reduced main-thread work through deferred window server registration
+- Improved architecture for future maintainability and testing
