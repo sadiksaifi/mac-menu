@@ -10,52 +10,23 @@
 import Cocoa
 import Darwin
 
-/// A custom table row view that provides hover and selection effects
-class HoverTableRowView: NSTableRowView {
-    /// Draws the selection highlight with rounded corners
-    /// - Parameter dirtyRect: The area that needs to be redrawn
-    override func drawSelection(in dirtyRect: NSRect) {
-        if self.selectionHighlightStyle != .none {
-            let selectionRect = NSRect(x: 2, y: 2, width: self.bounds.width - 4, height: self.bounds.height - 4)
-            let path = NSBezierPath(roundedRect: selectionRect, xRadius: 6, yRadius: 6)
-            NSColor.white.withAlphaComponent(0.1).setFill()
-            path.fill()
-        }
-    }
-    
-    /// Updates the tracking area for mouse hover effects
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        self.removeTrackingArea(self.trackingAreas.first ?? NSTrackingArea())
-        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways]
-        self.addTrackingArea(NSTrackingArea(rect: self.bounds, options: options, owner: self, userInfo: nil))
-    }
-    
-    /// Handles mouse enter events to show hover effect
-    /// - Parameter event: The mouse event
-    override func mouseEntered(with event: NSEvent) {
-        super.mouseEntered(with: event)
-        if !isSelected {
-            let hoverRect = NSRect(x: 2, y: 2, width: self.bounds.width - 4, height: self.bounds.height - 4)
-            let path = NSBezierPath(roundedRect: hoverRect, xRadius: 6, yRadius: 6)
-            NSColor.white.withAlphaComponent(0.05).setFill()
-            path.fill()
-        }
-        self.needsDisplay = true
-    }
-    
-    /// Handles mouse exit events to remove hover effect
-    /// - Parameter event: The mouse event
-    override func mouseExited(with event: NSEvent) {
-        super.mouseExited(with: event)
-        self.needsDisplay = true
-    }
-}
+// Models, Core, IO, and UI components are now in separate modules
 
 /// Main application class that implements the menu interface
 class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
+    // MARK: - Dependencies (injected for testability)
+
+    /// Input loader for reading stdin
+    private let inputLoader: InputLoaderProtocol
+
+    /// Search engine for fuzzy matching
+    private let searchEngine: SearchEngineProtocol
+
+    /// Output writer for stdout
+    private let outputWriter: OutputWriterProtocol
+
     // MARK: - Properties
-    
+
     /// The main application window
     var window: NSWindow!
     
@@ -67,13 +38,40 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     
     /// Scroll view containing the table view
     var scrollView: NSScrollView!
-    
-    /// All available items before filtering
-    var allItems: [String] = []
-    
-    /// Items filtered by search query
-    var filteredItems: [String] = []
-    
+
+    /// Loading indicator label shown while reading stdin
+    var loadingLabel: NSTextField?
+
+    /// Container view for the main UI
+    var containerView: NSView!
+
+    /// All available items before filtering (with cached lowercase)
+    var allItems: [SearchableItem] = []
+
+    /// Items filtered by search query (with cached lowercase)
+    var filteredItems: [SearchableItem] = []
+
+    /// Timer for debouncing search input
+    private var searchDebounceTimer: Timer?
+
+    // MARK: - Initialization
+
+    /// Creates a new MenuApp with injectable dependencies
+    /// - Parameters:
+    ///   - inputLoader: The input loader to use (defaults to stdin)
+    ///   - searchEngine: The search engine to use (defaults to fuzzy matching)
+    ///   - outputWriter: The output writer to use (defaults to stdout)
+    init(
+        inputLoader: InputLoaderProtocol = InputLoader(),
+        searchEngine: SearchEngineProtocol = SearchEngine(),
+        outputWriter: OutputWriterProtocol = StandardOutputWriter()
+    ) {
+        self.inputLoader = inputLoader
+        self.searchEngine = searchEngine
+        self.outputWriter = outputWriter
+        super.init()
+    }
+
     // MARK: - Application Lifecycle
     
     /// Sets up the application window and UI components
@@ -139,7 +137,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         NSApp.setActivationPolicy(.accessory)
         
         // Main container with border
-        let containerView = NSView(frame: window.contentView!.bounds)
+        containerView = NSView(frame: window.contentView!.bounds)
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = borderRadius
         containerView.layer?.borderWidth = 1
@@ -359,37 +357,43 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
             return event
         }
 
-        loadInput()
-    }
-    
-    // MARK: - Input Handling
-    
-    /// Loads input from stdin and populates the items list
-    func loadInput() {
-        // Check if stdin is a terminal
-        if isatty(FileHandle.standardInput.fileDescriptor) != 0 {
-            print("Error: No input provided. Please pipe some input into mac-menu.")
-            print("Use 'mac-menu --help' to learn more about how to use the program.")
-            NSApp.terminate(nil)
-            return
-        }
-        
-        // Try to read available input
-        if let input = try? String(data: FileHandle.standardInput.readToEnd() ?? Data(), encoding: .utf8) {
-            if input.isEmpty {
-                print("Error: No input provided. Please pipe some input into mac-menu.")
-                print("Use 'mac-menu --help' to learn more about how to use the program.")
+        // Add loading indicator
+        loadingLabel = NSTextField(labelWithString: "Loading...")
+        loadingLabel?.textColor = NSColor.white.withAlphaComponent(0.5)
+        loadingLabel?.font = NSFont.systemFont(ofSize: 14, weight: .regular)
+        loadingLabel?.alignment = .center
+        loadingLabel?.frame = NSRect(x: 0, y: height / 2 - 60, width: width, height: 20)
+        containerView.addSubview(loadingLabel!)
+
+        // Load input asynchronously using the injected loader
+        inputLoader.loadAsync { [weak self] result in
+            guard let self = self else { return }
+
+            // Remove loading indicator
+            self.loadingLabel?.removeFromSuperview()
+            self.loadingLabel = nil
+
+            switch result {
+            case .success(let rawItems):
+                // Convert to SearchableItem with pre-computed lowercase
+                self.allItems = rawItems.map { SearchableItem($0) }
+                self.filteredItems = self.allItems
+                self.tableView.reloadData()
+                self.selectRow(index: 0)
+
+            case .failure(let error):
+                switch error {
+                case .isTerminal:
+                    print("Error: No input provided. Please pipe some input into mac-menu.")
+                    print("Use 'mac-menu --help' to learn more about how to use the program.")
+                case .noInput:
+                    print("Error: No input provided. Please pipe some input into mac-menu.")
+                    print("Use 'mac-menu --help' to learn more about how to use the program.")
+                case .readError:
+                    print("Error: Failed to read input.")
+                }
                 NSApp.terminate(nil)
-                return
             }
-            allItems = input.components(separatedBy: .newlines).filter { !$0.isEmpty }
-            filteredItems = allItems
-            tableView.reloadData()
-            selectRow(index: 0)
-        } else {
-            print("Error: No input provided. Please pipe some input into mac-menu.")
-            print("Use 'mac-menu --help' to learn more about how to use the program.")
-            NSApp.terminate(nil)
         }
     }
     
@@ -410,7 +414,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     /// - Returns: The view to display in the table cell
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let cellPadding: CGFloat = 4
-        let cell = NSTextField(labelWithString: filteredItems[row])
+        let cell = NSTextField(labelWithString: filteredItems[row].original)
         cell.textColor = NSColor.white
         cell.backgroundColor = NSColor.clear
         cell.isBordered = false
@@ -481,27 +485,29 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     }
     
     // MARK: - Search Field Delegate
-    
+
     /// Called when the search field text changes
+    /// Uses debouncing to avoid excessive filtering during rapid typing
     /// - Parameter obj: The notification object
     func controlTextDidChange(_ obj: Notification) {
         guard let searchField = obj.object as? NSSearchField else { return }
-        let query = searchField.stringValue
-        
-        if query.isEmpty {
-            filteredItems = allItems
-        } else {
-            // Get matches with scores
-            let matches = allItems.compactMap { item -> FuzzyMatchResult? in
-                let (_, result) = fuzzyMatch(pattern: query, string: item)
-                return result
-            }
-            .sorted { $0.score > $1.score }
-            
-            // Extract just the strings in order of score
-            filteredItems = matches.map { $0.string }
+
+        // Cancel any pending search
+        searchDebounceTimer?.invalidate()
+
+        // Debounce for 50ms to reduce CPU usage during rapid typing
+        searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { [weak self] _ in
+            self?.performSearch(query: searchField.stringValue)
         }
-        
+    }
+
+    /// Performs the actual search/filter operation using the injected search engine
+    /// - Parameter query: The search query string
+    private func performSearch(query: String) {
+        // Use the search engine to perform fuzzy matching
+        let results = searchEngine.search(query: query, in: allItems)
+        filteredItems = results.map { $0.item }
+
         tableView.reloadData()
         if !filteredItems.isEmpty {
             selectRow(index: 0)
@@ -545,8 +551,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     func selectCurrentRow() {
         let row = tableView.selectedRow
         guard row >= 0 && row < filteredItems.count else { return }
-        print(filteredItems[row])
-        fflush(stdout)
+        outputWriter.write(filteredItems[row].original)
         NSApp.terminate(nil)
     }
     
