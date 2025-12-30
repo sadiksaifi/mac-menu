@@ -35,21 +35,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout Homebrew Tap
+        uses: actions/checkout@v4
+        with:
+          repository: sadiksaifi/homebrew-tap
+          token: ${{ secrets.TAP_PAT }}
+          path: homebrew-tap
+
       - name: Update Homebrew Formula
         run: |
           VERSION=${{ github.ref_name }}
           URL="https://github.com/sadiksaifi/mac-menu/releases/download/${VERSION}/mac-menu.tar.gz"
           SHA256=$(shasum -a 256 dist/mac-menu.tar.gz | awk '{print $1}')
 
+          echo "Updating Formula for version $VERSION..."
+          
+          cd homebrew-tap/Formula
+
           # Update Formula file
-          sed -i '' "s|url \".*\"|url \"$URL\"|" Formula/mac-menu.rb
-          sed -i '' "s|sha256 \".*\"|sha256 \"$SHA256\"|" Formula/mac-menu.rb
+          # macOS sed requires an empty string for in-place editing backup extension
+          sed -i '' "s|url \".*\"|url \"$URL\"|" mac-menu.rb
+          sed -i '' "s|sha256 \".*\"|sha256 \"$SHA256\"|" mac-menu.rb
 
-          # Commit and push
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add Formula/mac-menu.rb
-          git commit -m "chore: update formula for $VERSION"
-          git push origin HEAD:main
-
-          echo "✅ $VERSION formula updated and pushed"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add mac-menu.rb
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "release: update mac-menu version ${VERSION}" -m "Release: https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
+            git push origin main
+          fi
