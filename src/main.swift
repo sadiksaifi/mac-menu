@@ -10,52 +10,29 @@
 import Cocoa
 import Darwin
 
-/// A custom table row view that provides hover and selection effects
-class HoverTableRowView: NSTableRowView {
-    /// Draws the selection highlight with rounded corners
-    /// - Parameter dirtyRect: The area that needs to be redrawn
-    override func drawSelection(in dirtyRect: NSRect) {
-        if self.selectionHighlightStyle != .none {
-            let selectionRect = NSRect(x: 2, y: 2, width: self.bounds.width - 4, height: self.bounds.height - 4)
-            let path = NSBezierPath(roundedRect: selectionRect, xRadius: 6, yRadius: 6)
-            NSColor.white.withAlphaComponent(0.1).setFill()
-            path.fill()
-        }
-    }
-    
-    /// Updates the tracking area for mouse hover effects
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        self.removeTrackingArea(self.trackingAreas.first ?? NSTrackingArea())
-        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways]
-        self.addTrackingArea(NSTrackingArea(rect: self.bounds, options: options, owner: self, userInfo: nil))
-    }
-    
-    /// Handles mouse enter events to show hover effect
-    /// - Parameter event: The mouse event
-    override func mouseEntered(with event: NSEvent) {
-        super.mouseEntered(with: event)
-        if !isSelected {
-            let hoverRect = NSRect(x: 2, y: 2, width: self.bounds.width - 4, height: self.bounds.height - 4)
-            let path = NSBezierPath(roundedRect: hoverRect, xRadius: 6, yRadius: 6)
-            NSColor.white.withAlphaComponent(0.05).setFill()
-            path.fill()
-        }
-        self.needsDisplay = true
-    }
-    
-    /// Handles mouse exit events to remove hover effect
-    /// - Parameter event: The mouse event
-    override func mouseExited(with event: NSEvent) {
-        super.mouseExited(with: event)
-        self.needsDisplay = true
-    }
+// Models, Core, IO, and UI components are now in separate modules
+
+/// Custom window that accepts keyboard input when borderless
+class KeyableWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }
 
 /// Main application class that implements the menu interface
 class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
+    // MARK: - Dependencies (injected for testability)
+
+    /// Input loader for reading stdin
+    private let inputLoader: InputLoaderProtocol
+
+    /// Search engine for fuzzy matching
+    private let searchEngine: SearchEngineProtocol
+
+    /// Output writer for stdout
+    private let outputWriter: OutputWriterProtocol
+
     // MARK: - Properties
-    
+
     /// The main application window
     var window: NSWindow!
     
@@ -67,228 +44,145 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     
     /// Scroll view containing the table view
     var scrollView: NSScrollView!
-    
-    /// All available items before filtering
-    var allItems: [String] = []
-    
-    /// Items filtered by search query
-    var filteredItems: [String] = []
-    
+
+    /// Loading indicator label shown while reading stdin
+    var loadingLabel: NSTextField?
+
+    /// Container view for the main UI
+    var containerView: NSView!
+
+    /// All available items before filtering (with cached lowercase)
+    var allItems: [SearchableItem] = []
+
+    /// Items filtered by search query (with cached lowercase)
+    var filteredItems: [SearchableItem] = []
+
+    /// Timer for debouncing search input
+    private var searchDebounceTimer: Timer?
+
+    // MARK: - Initialization
+
+    /// Creates a new MenuApp with injectable dependencies
+    /// - Parameters:
+    ///   - inputLoader: The input loader to use (defaults to stdin)
+    ///   - searchEngine: The search engine to use (defaults to fuzzy matching)
+    ///   - outputWriter: The output writer to use (defaults to stdout)
+    init(
+        inputLoader: InputLoaderProtocol = InputLoader(),
+        searchEngine: SearchEngineProtocol = SearchEngine(),
+        outputWriter: OutputWriterProtocol = StandardOutputWriter()
+    ) {
+        self.inputLoader = inputLoader
+        self.searchEngine = searchEngine
+        self.outputWriter = outputWriter
+        super.init()
+    }
+
     // MARK: - Application Lifecycle
     
     /// Sets up the application window and UI components
     /// - Parameter notification: The launch notification
     func applicationDidFinishLaunching(_ notification: Notification) {
         let screenSize = NSScreen.main!.frame
-        let width: CGFloat = 720
-        let itemHeight: CGFloat = 48
-        let maxVisibleItems: CGFloat = 5
-        let searchHeight: CGFloat = 57
-        let borderRadius: CGFloat = 12
-        
+        let width: CGFloat = 680
+        let itemHeight: CGFloat = 44
+        let maxVisibleItems: CGFloat = 6
+        let searchHeight: CGFloat = 52
+        let borderRadius: CGFloat = 10
+
         // Calculate fixed height based on maximum visible items
         let height = searchHeight + (itemHeight * maxVisibleItems)
 
-        // Create and configure the main window
-        window = NSWindow(
+        // Create window with native styling
+        window = KeyableWindow(
             contentRect: NSRect(x: (screenSize.width - width) / 2,
-                                y: (screenSize.height - height) / 2,
+                                y: (screenSize.height - height) / 2 + 100,  // Slightly above center like Spotlight
                                 width: width,
                                 height: height),
-            styleMask: [.titled, .fullSizeContentView, .borderless],
+            styleMask: [.borderless],
             backing: .buffered,
-            defer: false
+            defer: true
         )
 
-        // Add mouse event monitor to handle clicks outside the window
+        // Click outside to dismiss
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self = self else { return }
-            let windowFrame = self.window.frame
-            let clickPoint = event.locationInWindow
-            
-            // Convert click point to screen coordinates
-            let screenPoint = self.window.convertPoint(toScreen: clickPoint)
-            
-            // Check if click is outside window frame
-            if !windowFrame.contains(screenPoint) {
+            let screenPoint = NSEvent.mouseLocation
+            if !self.window.frame.contains(screenPoint) {
                 NSApp.terminate(nil)
             }
         }
 
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
         window.isOpaque = false
         window.backgroundColor = NSColor.clear
         window.hasShadow = true
-        
-        // Configure window shadow
-        if let windowFrame = window.contentView?.superview {
-            windowFrame.wantsLayer = true
-            windowFrame.shadow = NSShadow()
-            windowFrame.layer?.shadowColor = NSColor.black.cgColor
-            windowFrame.layer?.shadowOpacity = 0.4
-            windowFrame.layer?.shadowOffset = NSSize(width: 0, height: -2)
-            windowFrame.layer?.shadowRadius = 20
-        }
-        
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
         window.hidesOnDeactivate = false
-        
-        // Prevent multiple instances from appearing in dock
+        window.appearance = nil  // Inherit system light/dark mode
+
+        // Prevent dock icon
         NSApp.setActivationPolicy(.accessory)
-        
-        // Main container with border
-        let containerView = NSView(frame: window.contentView!.bounds)
-        containerView.wantsLayer = true
-        containerView.layer?.cornerRadius = borderRadius
-        containerView.layer?.borderWidth = 1
-        containerView.layer?.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
-        window.contentView?.addSubview(containerView)
-        
-        // Background blur effect
-        let blurView = NSVisualEffectView(frame: containerView.bounds)
-        blurView.autoresizingMask = [.width, .height]
-        blurView.blendingMode = .behindWindow
-        blurView.material = .hudWindow
-        blurView.state = .active
-        blurView.wantsLayer = true
-        blurView.layer?.cornerRadius = borderRadius
-        
-        // Add subtle inner shadow to enhance depth
-        blurView.layer?.masksToBounds = false
-        let innerShadow = NSShadow()
-        innerShadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
-        innerShadow.shadowOffset = NSSize(width: 0, height: -1)
-        innerShadow.shadowBlurRadius = 3
-        blurView.shadow = innerShadow
-        
-        // Add subtle gradient overlay for glass effect
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.frame = containerView.bounds
-        gradientLayer.colors = [
-            NSColor.white.withAlphaComponent(0.15).cgColor,
-            NSColor.white.withAlphaComponent(0.08).cgColor
-        ]
-        gradientLayer.locations = [0.0, 1.0]
-        gradientLayer.cornerRadius = borderRadius
-        
-        // Overlay view for gradient
-        let overlayView = NSView(frame: containerView.bounds)
-        overlayView.wantsLayer = true
-        overlayView.layer?.cornerRadius = borderRadius
-        overlayView.layer?.addSublayer(gradientLayer)
-        
-        containerView.addSubview(blurView)
-        containerView.addSubview(overlayView)
-        
-        // Make overlay view more opaque
-        overlayView.alphaValue = 0.5
-        
-        // Search field - position at top with vertical centering
-        let searchFieldHeight: CGFloat = 36
-        let verticalPadding: CGFloat = 8  // Explicit padding for fine-tuning
-        let searchFieldY = height - searchHeight + verticalPadding
-        let horizontalPadding: CGFloat = 0
-        let textPadding: CGFloat = 8
-        
-        // Add search icon
-        let searchIcon = NSImageView(frame: NSRect(x: horizontalPadding + 16,
-                                                  y: searchFieldY + (searchFieldHeight - 24) / 2,  // Center vertically
-                                                  width: 32,
-                                                  height: 32))
-        let config = NSImage.SymbolConfiguration(pointSize: 32, weight: .light)
-        searchIcon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")?.withSymbolConfiguration(config)
-        searchIcon.contentTintColor = NSColor.white.withAlphaComponent(0.6)
-        searchIcon.imageScaling = .scaleProportionallyUpOrDown
+
+        // Use NSVisualEffectView as the main content - native macOS blur like Spotlight
+        let visualEffectView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        visualEffectView.material = .sidebar  // Light with blur in light mode
+        visualEffectView.blendingMode = .behindWindow
+        visualEffectView.state = .active
+        visualEffectView.wantsLayer = true
+        visualEffectView.layer?.cornerRadius = borderRadius
+        visualEffectView.layer?.masksToBounds = true
+        window.contentView = visualEffectView
+        containerView = visualEffectView
+
+        // Search field area
+        let sidePadding: CGFloat = 12
+        let searchAreaY = height - searchHeight
+        let fontSize: CGFloat = 18
+        let textFieldHeight: CGFloat = 20  // Approximate height for font size 18
+
+        // Search icon - centered vertically
+        let iconSize: CGFloat = 24
+        let searchIcon = NSImageView(frame: NSRect(x: sidePadding,
+                                                   y: searchAreaY + (searchHeight - iconSize) / 2,
+                                                   width: iconSize,
+                                                   height: iconSize))
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+        searchIcon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")?.withSymbolConfiguration(symbolConfig)
+        searchIcon.contentTintColor = NSColor.secondaryLabelColor
         containerView.addSubview(searchIcon)
-        
-        // Configure search field
-        searchField = NSSearchField(frame: NSRect(x: horizontalPadding + textPadding + 48, 
-                                                y: searchFieldY,
-                                                width: width - (horizontalPadding + textPadding) * 2 - 48, 
-                                                height: searchFieldHeight))
-        searchField.wantsLayer = true
+
+        // Search field - sized to text height and centered vertically
+        let searchFieldY = searchAreaY + (searchHeight - textFieldHeight) / 2
+        searchField = NSSearchField(frame: NSRect(x: sidePadding + 28,
+                                                  y: searchFieldY,
+                                                  width: width - sidePadding * 2 - 28,
+                                                  height: textFieldHeight))
         searchField.focusRingType = .none
         searchField.delegate = self
-        
-        // Create a custom clear appearance
-        let clearAppearance = NSAppearance(named: .darkAqua)
-        searchField.appearance = clearAppearance
-        
-        // Configure search field cell
-        if let cell = searchField.cell as? NSSearchFieldCell {
-            cell.font = NSFont.systemFont(ofSize: 24, weight: .regular)
-            cell.placeholderString = "Search..."
-            cell.searchButtonCell = nil
-            cell.cancelButtonCell = nil
-            cell.bezelStyle = .squareBezel
-            cell.backgroundColor = NSColor.clear
-            cell.drawsBackground = false
-            cell.sendsActionOnEndEditing = true
-            cell.isScrollable = true
-            cell.usesSingleLineMode = true
-            
-            // Set proper text attributes for padding
-            let style = NSMutableParagraphStyle()
-            style.firstLineHeadIndent = 8
-            style.headIndent = 8
-            let attributes: [NSAttributedString.Key: Any] = [
-                .paragraphStyle: style,
-                .font: NSFont.systemFont(ofSize: 24, weight: .regular),
-                .foregroundColor: NSColor.white
-            ]
-            cell.placeholderAttributedString = NSAttributedString(string: "Search...", attributes: attributes)
-        }
-        
-        // Remove any border or background from the search field itself
-        searchField.layer?.borderWidth = 0
-        searchField.layer?.cornerRadius = 0
-        searchField.layer?.masksToBounds = true
-        searchField.textColor = NSColor.white
-        searchField.backgroundColor = NSColor.clear
+        searchField.font = NSFont.systemFont(ofSize: fontSize, weight: .regular)
+        searchField.textColor = NSColor.labelColor
         searchField.drawsBackground = false
         searchField.isBezeled = false
         searchField.isBordered = false
-        
-        // Force the field editor to be transparent
-        if let fieldEditor = window.fieldEditor(false, for: searchField) as? NSTextView {
-            fieldEditor.backgroundColor = NSColor.clear
-            fieldEditor.drawsBackground = false
+        searchField.placeholderString = "Search..."
+
+        // Hide the built-in search/cancel buttons
+        if let cell = searchField.cell as? NSSearchFieldCell {
+            cell.searchButtonCell = nil
+            cell.cancelButtonCell = nil
         }
-        
-        // Remove the default search field styling from all subviews
-        searchField.subviews.forEach { subview in
-            subview.wantsLayer = true
-            if let layer = subview.layer {
-                layer.backgroundColor = NSColor.clear.cgColor
-            }
-            if let textField = subview as? NSTextField {
-                textField.backgroundColor = NSColor.clear
-                textField.drawsBackground = false
-                textField.isBezeled = false
-                textField.isBordered = false
-            }
-        }
-        
+
         containerView.addSubview(searchField)
-        
+
         // Separator line
-        let separator = NSView(frame: NSRect(x: horizontalPadding, 
-                                           y: height - searchHeight, 
-                                           width: width - horizontalPadding * 2, 
-                                           height: 1))
-        separator.wantsLayer = true
-        separator.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.1).cgColor
+        let separator = NSBox(frame: NSRect(x: 0, y: height - searchHeight, width: width, height: 1))
+        separator.boxType = .separator
         containerView.addSubview(separator)
 
-        // Configure table view
+        // Table view
         let tableHeight = height - searchHeight
-        let sideMargin: CGFloat = 8
-        scrollView = NSScrollView(frame: NSRect(x: sideMargin, 
-                                              y: sideMargin, 
-                                              width: width - (sideMargin * 2), 
-                                              height: tableHeight - sideMargin))
+        scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: width, height: tableHeight))
         scrollView.hasVerticalScroller = true
         scrollView.verticalScroller?.alphaValue = 0
         scrollView.backgroundColor = NSColor.clear
@@ -314,13 +208,12 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         containerView.addSubview(scrollView)
 
         window.makeFirstResponder(searchField)
-        window.center()
         window.makeKeyAndOrderFront(nil)
-        
+
         // Ensure window gets and maintains focus
         NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
-        
+
         // Add focus observer
         NotificationCenter.default.addObserver(
             self,
@@ -359,37 +252,43 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
             return event
         }
 
-        loadInput()
-    }
-    
-    // MARK: - Input Handling
-    
-    /// Loads input from stdin and populates the items list
-    func loadInput() {
-        // Check if stdin is a terminal
-        if isatty(FileHandle.standardInput.fileDescriptor) != 0 {
-            print("Error: No input provided. Please pipe some input into mac-menu.")
-            print("Use 'mac-menu --help' to learn more about how to use the program.")
-            NSApp.terminate(nil)
-            return
-        }
-        
-        // Try to read available input
-        if let input = try? String(data: FileHandle.standardInput.readToEnd() ?? Data(), encoding: .utf8) {
-            if input.isEmpty {
-                print("Error: No input provided. Please pipe some input into mac-menu.")
-                print("Use 'mac-menu --help' to learn more about how to use the program.")
+        // Add loading
+        loadingLabel = NSTextField(labelWithString: "")
+        loadingLabel?.textColor = NSColor.secondaryLabelColor
+        loadingLabel?.font = NSFont.systemFont(ofSize: 13, weight: .regular)
+        loadingLabel?.alignment = .center
+        loadingLabel?.frame = NSRect(x: 0, y: tableHeight / 2, width: width, height: 20)
+        containerView.addSubview(loadingLabel!)
+
+        // Load input asynchronously using the injected loader
+        inputLoader.loadAsync { [weak self] result in
+            guard let self = self else { return }
+
+            // Remove loading indicator
+            self.loadingLabel?.removeFromSuperview()
+            self.loadingLabel = nil
+
+            switch result {
+            case .success(let rawItems):
+                // Convert to SearchableItem with pre-computed lowercase
+                self.allItems = rawItems.map { SearchableItem($0) }
+                self.filteredItems = self.allItems
+                self.tableView.reloadData()
+                self.selectRow(index: 0)
+
+            case .failure(let error):
+                switch error {
+                case .isTerminal:
+                    print("Error: No input provided. Please pipe some input into mac-menu.")
+                    print("Use 'mac-menu --help' to learn more about how to use the program.")
+                case .noInput:
+                    print("Error: No input provided. Please pipe some input into mac-menu.")
+                    print("Use 'mac-menu --help' to learn more about how to use the program.")
+                case .readError:
+                    print("Error: Failed to read input.")
+                }
                 NSApp.terminate(nil)
-                return
             }
-            allItems = input.components(separatedBy: .newlines).filter { !$0.isEmpty }
-            filteredItems = allItems
-            tableView.reloadData()
-            selectRow(index: 0)
-        } else {
-            print("Error: No input provided. Please pipe some input into mac-menu.")
-            print("Use 'mac-menu --help' to learn more about how to use the program.")
-            NSApp.terminate(nil)
         }
     }
     
@@ -409,27 +308,25 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     ///   - row: The row for which to provide the view
     /// - Returns: The view to display in the table cell
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let cellPadding: CGFloat = 4
-        let cell = NSTextField(labelWithString: filteredItems[row])
-        cell.textColor = NSColor.white
-        cell.backgroundColor = NSColor.clear
-        cell.isBordered = false
-        cell.font = NSFont.systemFont(ofSize: 16, weight: .regular)
-        cell.lineBreakMode = .byTruncatingTail
-        
-        // Create container for proper padding and hover state
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: tableView.frame.width, height: tableView.rowHeight))
-        container.wantsLayer = true
-        
-        // Center the cell vertically in its container and add side padding
-        let cellHeight = cell.cell?.cellSize.height ?? 20
-        let yOffset = (container.frame.height - cellHeight) / 2
-        cell.frame = NSRect(x: cellPadding, 
-                          y: yOffset,
-                          width: container.frame.width - (cellPadding * 2), 
-                          height: cellHeight)
-        
-        container.addSubview(cell)
+        let container = NSView()
+
+        let textField = NSTextField(labelWithString: filteredItems[row].original)
+        textField.textColor = NSColor.labelColor
+        textField.font = NSFont.systemFont(ofSize: 14, weight: .regular)
+        textField.lineBreakMode = .byTruncatingTail
+        textField.isBordered = false
+        textField.drawsBackground = false
+        textField.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(textField)
+
+        // Use Auto Layout to center vertically
+        NSLayoutConstraint.activate([
+            textField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            textField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            textField.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+
         return container
     }
     
@@ -481,27 +378,29 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     }
     
     // MARK: - Search Field Delegate
-    
+
     /// Called when the search field text changes
+    /// Uses debouncing to avoid excessive filtering during rapid typing
     /// - Parameter obj: The notification object
     func controlTextDidChange(_ obj: Notification) {
         guard let searchField = obj.object as? NSSearchField else { return }
-        let query = searchField.stringValue
-        
-        if query.isEmpty {
-            filteredItems = allItems
-        } else {
-            // Get matches with scores
-            let matches = allItems.compactMap { item -> FuzzyMatchResult? in
-                let (_, result) = fuzzyMatch(pattern: query, string: item)
-                return result
-            }
-            .sorted { $0.score > $1.score }
-            
-            // Extract just the strings in order of score
-            filteredItems = matches.map { $0.string }
+
+        // Cancel any pending search
+        searchDebounceTimer?.invalidate()
+
+        // Debounce for 50ms to reduce CPU usage during rapid typing
+        searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { [weak self] _ in
+            self?.performSearch(query: searchField.stringValue)
         }
-        
+    }
+
+    /// Performs the actual search/filter operation using the injected search engine
+    /// - Parameter query: The search query string
+    private func performSearch(query: String) {
+        // Use the search engine to perform fuzzy matching
+        let results = searchEngine.search(query: query, in: allItems)
+        filteredItems = results.map { $0.item }
+
         tableView.reloadData()
         if !filteredItems.isEmpty {
             selectRow(index: 0)
@@ -545,8 +444,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     func selectCurrentRow() {
         let row = tableView.selectedRow
         guard row >= 0 && row < filteredItems.count else { return }
-        print(filteredItems[row])
-        fflush(stdout)
+        outputWriter.write(filteredItems[row].original)
         NSApp.terminate(nil)
     }
     

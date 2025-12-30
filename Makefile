@@ -3,7 +3,16 @@ BINARY_NAME = mac-menu
 SRC_DIR = src
 DIST_DIR = .build
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
-SOURCES = $(SRC_DIR)/FuzzyMatch.swift $(SRC_DIR)/main.swift $(SRC_DIR)/Version.swift
+SOURCES = \
+	$(SRC_DIR)/Models/SearchableItem.swift \
+	$(SRC_DIR)/Core/Protocols.swift \
+	$(SRC_DIR)/Core/FuzzyMatch.swift \
+	$(SRC_DIR)/Core/SearchEngine.swift \
+	$(SRC_DIR)/IO/InputLoader.swift \
+	$(SRC_DIR)/IO/OutputWriter.swift \
+	$(SRC_DIR)/UI/HoverTableRowView.swift \
+	$(SRC_DIR)/main.swift \
+	$(SRC_DIR)/Version.swift
 
 .PHONY: all clean install uninstall test run
 RUN_CMD = $(DIST_DIR)/$(BINARY_NAME)

@@ -2,7 +2,7 @@
 
 A macOS-native GUI implementation inspired by [fzf](https://github.com/junegunn/fzf), providing a clean and modern fuzzy finder interface for your command-line workflows.
 
-![Screenshot](./assets//screenshot.png)
+<img width="1352" height="878" alt="Screenshot 2025-12-31 at 03 19 45" src="https://github.com/user-attachments/assets/e1e7f29d-9f51-4800-bdb7-7c48fefd631b" />
 
 ## Features
 

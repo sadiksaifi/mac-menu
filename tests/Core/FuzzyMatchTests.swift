@@ -1,5 +1,5 @@
 import Testing
-@testable import FuzzyMatchModule
+@testable import MacMenuLib
 
 struct FuzzyMatchTests {
     @Test func emptyPatternMatchesEverything() throws {
@@ -26,5 +26,12 @@ struct FuzzyMatchTests {
         let (matched, result) = fuzzyMatch(pattern: "FZ", string: "fuzzy")
         #expect(matched, "Matching should be case-insensitive")
         #expect(result?.positions == [0, 3], "Expected positions for 'FZ' in 'fuzzy' to be [0, 3]")
+    }
+
+    @Test func precomputedLowercaseWorks() throws {
+        let (matched, result) = fuzzyMatch(pattern: "test", string: "Testing", precomputedLower: "testing")
+        #expect(matched, "Should match with precomputed lowercase")
+        #expect(result != nil, "Result should not be nil")
+        #expect(result?.string == "Testing", "Original string should be preserved")
     }
 }
