@@ -21,9 +21,8 @@ For a detailed overview of Mac Menu, including real-world examples and use cases
 
 ### Homebrew (Recommended)
 
-```bash
-brew tap sadiksaifi/tap
-brew install mac-menu
+```sh
+brew install sadiksaifi/tap/mac-menu
 ```
 
 ### Manual Installation
