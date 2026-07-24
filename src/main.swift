@@ -12,10 +12,30 @@ import Darwin
 
 // Models, Core, IO, and UI components are now in separate modules
 
-/// Custom window that accepts keyboard input when borderless
-class KeyableWindow: NSWindow {
+/// Floating command palette that accepts keyboard input when borderless
+class CommandPalettePanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+/// Appearance-aware backing that keeps text legible over bright or dark content.
+final class PaletteContrastView: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor
+            .withAlphaComponent(0.82)
+            .cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
+    }
 }
 
 /// Main application class that implements the menu interface
@@ -34,7 +54,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
     // MARK: - Properties
 
     /// The main application window
-    var window: NSWindow!
+    var window: NSPanel!
     
     /// Table view for displaying and selecting items
     var tableView: NSTableView!
@@ -93,8 +113,8 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         // Calculate fixed height based on maximum visible items
         let height = searchHeight + (itemHeight * maxVisibleItems)
 
-        // Create window with native styling
-        window = KeyableWindow(
+        // A panel is the native host for transient, floating utility UI.
+        window = CommandPalettePanel(
             contentRect: NSRect(x: (screenSize.width - width) / 2,
                                 y: (screenSize.height - height) / 2 + 100,  // Slightly above center like Spotlight
                                 width: width,
@@ -116,6 +136,8 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         window.isOpaque = false
         window.backgroundColor = NSColor.clear
         window.hasShadow = true
+        window.isFloatingPanel = true
+        window.becomesKeyOnlyIfNeeded = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
         window.hidesOnDeactivate = false
@@ -124,14 +146,26 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         // Prevent dock icon
         NSApp.setActivationPolicy(.accessory)
 
-        // Use NSVisualEffectView as the main content - native macOS blur like Spotlight
-        let visualEffectView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: width, height: height))
-        visualEffectView.material = .sidebar  // Light with blur in light mode
+        let contentFrame = NSRect(x: 0, y: 0, width: width, height: height)
+
+        // A command palette is a HUD surface, not an anchored popover or a
+        // Liquid Glass control. AppKit renders this material appropriately on
+        // both pre-Tahoe and Tahoe-era macOS.
+        let visualEffectView = NSVisualEffectView(frame: contentFrame)
+        visualEffectView.material = .hudWindow
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.state = .active
+        visualEffectView.autoresizingMask = [.width, .height]
         visualEffectView.wantsLayer = true
         visualEffectView.layer?.cornerRadius = borderRadius
         visualEffectView.layer?.masksToBounds = true
+
+        // Blur retains context while the semantic backing provides stable
+        // foreground contrast, even when the window behind is very dark.
+        let contrastView = PaletteContrastView(frame: contentFrame)
+        contrastView.autoresizingMask = [.width, .height]
+        visualEffectView.addSubview(contrastView)
+
         window.contentView = visualEffectView
         containerView = visualEffectView
 
@@ -213,6 +247,8 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         // Ensure window gets and maintains focus
         NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
+        window.layoutIfNeeded()
+        window.invalidateShadow()
 
         // Add focus observer
         NotificationCenter.default.addObserver(

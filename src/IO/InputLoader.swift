@@ -14,12 +14,14 @@ public final class InputLoader: InputLoaderProtocol {
 
     /// Loads input asynchronously from stdin
     /// - Parameter completion: Callback with the result (success with items or failure with error)
-    public func loadAsync(completion: @escaping (Result<[String], InputError>) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
+    public func loadAsync(
+        completion: @escaping @MainActor @Sendable (Result<[String], InputError>) -> Void
+    ) {
+        let fileHandle = fileHandle
 
+        DispatchQueue.global(qos: .userInitiated).async {
             // Check if stdin is a terminal (must be done before reading)
-            if isatty(self.fileHandle.fileDescriptor) != 0 {
+            if isatty(fileHandle.fileDescriptor) != 0 {
                 DispatchQueue.main.async {
                     completion(.failure(.isTerminal))
                 }
@@ -27,7 +29,7 @@ public final class InputLoader: InputLoaderProtocol {
             }
 
             // Read stdin on background thread (this is the blocking operation)
-            guard let data = try? self.fileHandle.readToEnd(),
+            guard let data = try? fileHandle.readToEnd(),
                   let input = String(data: data, encoding: .utf8),
                   !input.isEmpty else {
                 DispatchQueue.main.async {
