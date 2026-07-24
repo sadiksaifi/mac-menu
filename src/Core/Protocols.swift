@@ -27,7 +27,7 @@ public protocol SearchEngineProtocol {
 }
 
 /// Error types for input loading
-public enum InputError: Error, Equatable {
+public enum InputError: Error, Equatable, Sendable {
     case noInput
     case isTerminal
     case readError
@@ -37,7 +37,9 @@ public enum InputError: Error, Equatable {
 public protocol InputLoaderProtocol {
     /// Loads input asynchronously
     /// - Parameter completion: Callback with the result (success with items or failure with error)
-    func loadAsync(completion: @escaping (Result<[String], InputError>) -> Void)
+    func loadAsync(
+        completion: @escaping @MainActor @Sendable (Result<[String], InputError>) -> Void
+    )
 }
 
 /// Protocol for output writing - allows for dependency injection and testing
