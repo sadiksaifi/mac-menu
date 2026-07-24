@@ -119,7 +119,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
                                 y: (screenSize.height - height) / 2 + 100,  // Slightly above center like Spotlight
                                 width: width,
                                 height: height),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
         )
@@ -244,8 +244,7 @@ class MenuApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableVi
         window.makeFirstResponder(searchField)
         window.makeKeyAndOrderFront(nil)
 
-        // Ensure window gets and maintains focus
-        NSApp.activate(ignoringOtherApps: true)
+        // Keep the invoking application active while the panel accepts input.
         window.orderFrontRegardless()
         window.layoutIfNeeded()
         window.invalidateShadow()
